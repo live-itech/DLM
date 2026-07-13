@@ -122,6 +122,7 @@ class QuotationController extends Controller implements HasMiddleware
             ]);
             $quotation->items()->delete();
             $this->syncItems($quotation, $data['items']);
+            $quotation->save();
         });
 
         return redirect()->route('quotations.show', $quotation)->with('status', 'Surat Penawaran diperbarui.');

@@ -113,11 +113,25 @@ window.dueDatePicker = function (cfg) {
             if (this.manual) return;
             this.dueDate = this.termDueDate();
         },
+        daysBetween() {
+            if (!this.date || !this.dueDate) return null;
+            const a = new Date(this.date + 'T00:00:00');
+            const b = new Date(this.dueDate + 'T00:00:00');
+            return Math.round((b - a) / 86400000);
+        },
         termLabel() {
             const term = this.term();
-            if (term === null) return 'Ikut termin setelah pilih supplier/pelanggan.';
-            if (this.manual) return `Diisi manual · termin ${term} hari.`;
-            return `Otomatis dari termin ${term} hari.`;
+            const days = this.daysBetween();
+            const daysInfo = days !== null ? `Tempo ${days} hari` : '';
+
+            if (term === null && !daysInfo) return 'Ikut termin setelah pilih supplier/pelanggan.';
+            if (term === null) return daysInfo + '.';
+
+            if (days !== null && days !== term) {
+                return `${daysInfo} (termin ${term} hari).`;
+            }
+            if (this.manual) return daysInfo ? `${daysInfo} · diisi manual.` : `Diisi manual · termin ${term} hari.`;
+            return daysInfo ? `${daysInfo} · otomatis dari termin.` : `Otomatis dari termin ${term} hari.`;
         },
     };
 };

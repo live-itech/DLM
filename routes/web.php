@@ -38,6 +38,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserActive::class])->group
 
     // ================= PEMBELIAN =================
     Route::controller(PurchaseOrderController::class)->prefix('purchase-orders')->name('purchase-orders.')->group(function () {
+        Route::get('{purchaseOrder}/pdf', 'pdf')->name('pdf');
         Route::post('{purchaseOrder}/order', 'order')->name('order');
         Route::post('{purchaseOrder}/cancel', 'cancel')->name('cancel');
         Route::get('{purchaseOrder}/receive', 'receiveForm')->name('receive');
@@ -59,7 +60,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserActive::class])->group
     Route::patch('invoices/{invoice}/dates', [InvoiceController::class, 'updateDates'])->name('invoices.dates.update');
     Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
     Route::post('invoices/{invoice}/tax-invoice', [TaxInvoiceController::class, 'generate'])->name('invoices.generate-tax');
-    Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
+    Route::resource('invoices', InvoiceController::class)->only(['index', 'show', 'edit', 'update']);
 
     // ================= FAKTUR PAJAK =================
     Route::controller(TaxInvoiceController::class)->prefix('tax-invoices')->name('tax-invoices.')->group(function () {

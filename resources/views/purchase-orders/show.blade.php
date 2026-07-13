@@ -11,6 +11,7 @@
     <x-page-header :title="$order->po_number" :subtitle="'Dibuat ' . $order->created_at->format('d/m/Y H:i')">
         <x-slot name="action">
             <a href="{{ route('purchase-orders.index') }}" class="btn-outline">Kembali</a>
+            <a href="{{ route('purchase-orders.pdf', $order) }}" target="_blank" class="btn-outline">Cetak PDF</a>
             @can('purchase-orders.update')
                 @if ($order->isEditable())
                     <a href="{{ route('purchase-orders.edit', $order) }}" class="btn-outline">Edit</a>
@@ -78,25 +79,49 @@
                 </div>
                 @can('purchase-orders.update')
                     <form x-show="open" x-cloak method="POST" action="{{ route('purchase-orders.payments.store', $order) }}"
-                          class="mb-3 grid grid-cols-1 gap-2 rounded-lg bg-gray-50 p-3 sm:grid-cols-4"
+                          enctype="multipart/form-data"
+                          class="mb-3 space-y-2 rounded-lg bg-gray-50 p-3"
                           x-data="{ amount: '', outstanding: {{ number_format($order->outstanding, 2, '.', '') }} }">
                         @csrf
-                        <input type="date" name="date" value="{{ now()->toDateString() }}" class="form-input" required>
-                        <div class="relative">
-                            <input type="number" step="0.01" name="amount" x-model="amount" placeholder="Jumlah" class="form-input pr-16" :max="outstanding" required>
-                            <button type="button" @click="amount = outstanding"
-                                    class="absolute inset-y-1 right-1 rounded-md bg-gold-100 px-2 text-xs font-semibold text-gold-800 hover:bg-gold-200">
-                                Lunas
-                            </button>
+                        <div class="grid grid-cols-1 gap-2 sm:grid-cols-4">
+                            <input type="date" name="date" value="{{ now()->toDateString() }}" class="form-input" required>
+                            <div class="relative">
+                                <input type="number" step="0.01" name="amount" x-model="amount" placeholder="Jumlah" class="form-input pr-16" :max="outstanding" required>
+                                <button type="button" @click="amount = outstanding"
+                                        class="absolute inset-y-1 right-1 rounded-md bg-gold-100 px-2 text-xs font-semibold text-gold-800 hover:bg-gold-200">
+                                    Lunas
+                                </button>
+                            </div>
+                            <input type="text" name="method" placeholder="Metode (transfer/tunai)" class="form-input">
+                            <input type="text" name="invoice_number" placeholder="No. Invoice Supplier" class="form-input">
                         </div>
-                        <input type="text" name="method" placeholder="Metode (transfer/tunai)" class="form-input">
-                        <button class="btn-gold">Simpan</button>
+                        <div class="flex items-center gap-2">
+                            <input type="file" name="attachment" accept=".pdf,.jpg,.jpeg,.png"
+                                   class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gold-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-gold-700 hover:file:bg-gold-100">
+                            <button class="btn-gold whitespace-nowrap">Simpan</button>
+                        </div>
+                        <p class="text-xs text-gray-400">Upload bukti invoice (PDF/JPG/PNG, maks 5MB)</p>
                     </form>
                 @endcan
                 @forelse ($order->payments as $p)
-                    <div class="flex items-center justify-between border-b border-gray-50 py-1.5 text-sm">
-                        <span class="text-gray-500">{{ $p->date->format('d/m/Y') }} · {{ $p->method ?: '—' }}</span>
-                        <span class="font-medium text-navy">Rp {{ number_format($p->amount,0,',','.') }}</span>
+                    <div class="border-b border-gray-50 py-2 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500">{{ $p->date->format('d/m/Y') }} · {{ $p->method ?: '—' }}</span>
+                            <span class="font-medium text-navy">Rp {{ number_format($p->amount,0,',','.') }}</span>
+                        </div>
+                        @if ($p->invoice_number || $p->attachment)
+                            <div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                                @if ($p->invoice_number)
+                                    <span>Invoice: <span class="font-medium text-navy">{{ $p->invoice_number }}</span></span>
+                                @endif
+                                @if ($p->attachment)
+                                    <a href="{{ asset('storage/' . $p->attachment) }}" target="_blank" class="inline-flex items-center gap-1 text-gold-700 hover:underline">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                                        Lihat Bukti
+                                    </a>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                 @empty
                     <p class="text-sm text-gray-400">Belum ada pembayaran.</p>

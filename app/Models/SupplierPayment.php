@@ -9,6 +9,7 @@ class SupplierPayment extends Model
 {
     protected $fillable = [
         'purchase_order_id', 'user_id', 'date', 'amount', 'method', 'note',
+        'invoice_number', 'attachment',
     ];
 
     protected $casts = [

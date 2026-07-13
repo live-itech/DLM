@@ -36,7 +36,7 @@
                     <th class="table-th">No. PO</th><th class="table-th">Tanggal</th><th class="table-th">Jatuh Tempo</th>
                     <th class="table-th">Supplier</th>
                     <th class="table-th text-right">Total</th><th class="table-th text-right">Sisa Hutang</th>
-                    <th class="table-th text-center">Status</th><th class="table-th text-right">Aksi</th>
+                    <th class="table-th text-center">Status</th><th class="table-th text-center">Pembayaran</th><th class="table-th text-right">Aksi</th>
                 </tr></thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse ($orders as $po)
@@ -53,10 +53,23 @@
                                 {{ $po->status === 'cancelled' ? '—' : 'Rp ' . number_format($po->outstanding, 0, ',', '.') }}
                             </td>
                             <td class="table-td text-center"><span class="badge {{ $statusColor[$po->status] ?? 'bg-gray-100' }}">{{ $po->status_label }}</span></td>
+                            <td class="table-td text-center">
+                                @if ($po->status !== 'draft' && $po->status !== 'cancelled')
+                                    @if ($po->payment_status === 'paid')
+                                        <span class="badge bg-green-100 text-green-700">Sudah Bayar</span>
+                                    @elseif ($po->payment_status === 'partial')
+                                        <span class="badge bg-amber-100 text-amber-700">Bayar Sebagian</span>
+                                    @else
+                                        <span class="badge bg-red-100 text-red-600">Belum Bayar</span>
+                                    @endif
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
                             <td class="table-td text-right"><a href="{{ route('purchase-orders.show', $po) }}" class="text-gold-700 hover:underline">Detail</a></td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="table-td py-10 text-center text-gray-400">Belum ada purchase order.</td></tr>
+                        <tr><td colspan="9" class="table-td py-10 text-center text-gray-400">Belum ada purchase order.</td></tr>
                     @endforelse
                 </tbody>
             </table>

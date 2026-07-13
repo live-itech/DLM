@@ -118,6 +118,7 @@ class SalesOrderController extends Controller implements HasMiddleware
             ]);
             $salesOrder->items()->delete();
             $this->syncItems($salesOrder, $data['items']);
+            $salesOrder->save();
         });
 
         return redirect()->route('sales-orders.show', $salesOrder)->with('status', 'Sales Order berhasil diperbarui.');

@@ -3,53 +3,37 @@
         'id' => $p->id, 'name' => $p->code . ' — ' . $p->name,
         'price' => (float) $p->sell_price, 'unit' => $p->unit?->symbol ?? '',
     ])->values();
-    $itemsJson = $order->exists ? $order->items->map(fn ($i) => [
+    $itemsJson = $order->items->map(fn ($i) => [
         'product_id' => $i->product_id, 'qty' => (float) $i->qty, 'price' => (float) $i->sell_price,
         'discount' => (float) $i->discount, 'discount_reason' => $i->discount_reason,
-    ])->values() : collect();
+    ])->values();
+    $so = $order;
 @endphp
 <x-app-layout>
-    <x-slot name="header">{{ $order->exists ? 'Edit' : 'Buat' }} Sales Order</x-slot>
+    <x-slot name="header">Edit Invoice</x-slot>
 
-    <x-page-header :title="($order->exists ? 'Edit' : 'Buat') . ' Sales Order'" subtitle="Pesanan penjualan ke pelanggan" />
+    <x-page-header :title="'Edit Invoice ' . $invoice->invoice_number" :subtitle="'SO: ' . $so->so_number . ' — ' . $so->customer->name" />
 
-    <form method="POST" action="{{ $order->exists ? route('sales-orders.update', $order) : route('sales-orders.store') }}"
-          x-data="orderForm({ products: {{ Illuminate\Support\Js::from($productsJson) }}, items: {{ Illuminate\Support\Js::from($itemsJson) }}, priceField: 'sell_price', isTaxable: {{ old('is_taxable', $order->is_taxable) ? 'true' : 'false' }}, ppnRate: {{ old('ppn_rate', $order->ppn_rate ?: 11) }}, discount: {{ old('discount', $order->discount ?: 0) }}, withReason: true })">
+    <form method="POST" action="{{ route('invoices.update', $invoice) }}"
+          x-data="orderForm({ products: {{ Illuminate\Support\Js::from($productsJson) }}, items: {{ Illuminate\Support\Js::from($itemsJson) }}, priceField: 'sell_price', isTaxable: {{ $so->is_taxable ? 'true' : 'false' }}, ppnRate: {{ $so->ppn_rate ?: 11 }}, discount: {{ $so->discount ?: 0 }}, withReason: true })">
         @csrf
-        @if ($order->exists) @method('PUT') @endif
+        @method('PUT')
 
         <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
-            {{-- Kiri: header + item --}}
             <div class="space-y-5 lg:col-span-2">
-                <div class="card grid grid-cols-1 gap-4 sm:grid-cols-2"
-                     x-data="dueDatePicker({
-                        terms: {{ Illuminate\Support\Js::from($customers->pluck('payment_term_days', 'id')) }},
-                        partyId: '{{ old('customer_id', $order->customer_id) }}',
-                        date: '{{ old('date', optional($order->date)->toDateString() ?? now()->toDateString()) }}',
-                        dueDate: '{{ old('due_date', optional($order->due_date)->toDateString() ?? '') }}',
-                     })">
+                {{-- Info invoice (read-only) --}}
+                <div class="card grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
-                        <label class="form-label">Pelanggan <span class="text-red-500">*</span></label>
-                        <select name="customer_id" x-model="partyId" @change="applyTerm()" class="form-input" required>
-                            <option value="">— Pilih pelanggan —</option>
-                            @foreach ($customers as $c)
-                                <option value="{{ $c->id }}">{{ $c->name }}</option>
-                            @endforeach
-                        </select>
-                        <x-input-error :messages="$errors->get('customer_id')" class="mt-1" />
+                        <label class="form-label text-gray-500">Pelanggan</label>
+                        <p class="font-medium text-navy">{{ $so->customer->name }}</p>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="form-label">Tanggal SO <span class="text-red-500">*</span></label>
-                            <input type="date" name="date" x-model="date" @change="applyTerm()" class="form-input" required>
-                            <x-input-error :messages="$errors->get('date')" class="mt-1" />
-                        </div>
-                        <div>
-                            <label class="form-label">Jatuh Tempo</label>
-                            <input type="date" name="due_date" x-model="dueDate" :min="date" class="form-input">
-                            <p class="mt-1 text-xs text-gray-400" x-text="termLabel()"></p>
-                            <x-input-error :messages="$errors->get('due_date')" class="mt-1" />
-                        </div>
+                    <div>
+                        <label class="form-label text-gray-500">No. Invoice</label>
+                        <p class="font-medium text-navy">{{ $invoice->invoice_number }}</p>
+                    </div>
+                    <div>
+                        <label class="form-label text-gray-500">Tanggal</label>
+                        <p class="font-medium text-navy">{{ $invoice->date->format('d/m/Y') }}</p>
                     </div>
                 </div>
 
@@ -108,11 +92,6 @@
                     </div>
                     <x-input-error :messages="$errors->get('items')" class="p-4" />
                 </div>
-
-                <div class="card">
-                    <label class="form-label">Catatan</label>
-                    <textarea name="notes" rows="2" class="form-input">{{ old('notes', $order->notes) }}</textarea>
-                </div>
             </div>
 
             {{-- Kanan: ringkasan pajak & total --}}
@@ -144,11 +123,18 @@
                         <div class="flex justify-between border-t border-gray-100 pt-2 text-base font-bold text-navy"><span>Total</span><span x-text="rp(total)"></span></div>
                     </div>
 
+                    @if ((float) $invoice->paid_amount > 0)
+                        <div class="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+                            <strong>Perhatian:</strong> Invoice ini sudah memiliki pembayaran sebesar
+                            Rp {{ number_format($invoice->paid_amount, 0, ',', '.') }}.
+                            Status pembayaran akan disesuaikan otomatis setelah perubahan.
+                        </div>
+                    @endif
+
                     <div class="flex flex-col gap-2 pt-2">
-                        <button type="submit" class="btn-gold w-full">Simpan (Draft)</button>
-                        <a href="{{ route('sales-orders.index') }}" class="btn-outline w-full">Batal</a>
+                        <button type="submit" class="btn-gold w-full">Simpan Perubahan</button>
+                        <a href="{{ route('invoices.show', $invoice) }}" class="btn-outline w-full">Batal</a>
                     </div>
-                    <p class="text-xs text-gray-400">SO tersimpan sebagai draft. Stok baru dikurangi saat SO dikonfirmasi.</p>
                 </div>
             </div>
         </div>

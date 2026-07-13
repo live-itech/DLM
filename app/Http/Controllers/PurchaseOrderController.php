@@ -7,7 +7,9 @@ use App\Models\PurchaseOrder;
 use App\Models\Setting;
 use App\Models\Supplier;
 use App\Services\StockService;
+use App\Support\Brand;
 use App\Support\Totals;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -19,7 +21,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:purchase-orders.view', only: ['index', 'show']),
+            new Middleware('permission:purchase-orders.view', only: ['index', 'show', 'pdf']),
             new Middleware('permission:purchase-orders.create', only: ['create', 'store']),
             new Middleware('permission:purchase-orders.update', only: ['edit', 'update', 'order', 'cancel', 'receiveForm', 'storeReceipt', 'storePayment']),
             new Middleware('permission:purchase-orders.delete', only: ['destroy']),
@@ -87,6 +89,19 @@ class PurchaseOrderController extends Controller implements HasMiddleware
         return view('purchase-orders.show', ['order' => $purchaseOrder]);
     }
 
+    public function pdf(PurchaseOrder $purchaseOrder)
+    {
+        $purchaseOrder->load(['supplier', 'items.product.unit']);
+
+        $pdf = Pdf::loadView('pdf.purchase-order', [
+            'order' => $purchaseOrder,
+            'company' => Brand::company(),
+            'logo' => Brand::logoDataUri(),
+        ])->setPaper('a4');
+
+        return $pdf->stream('PO-' . str_replace('/', '-', $purchaseOrder->po_number) . '.pdf');
+    }
+
     public function edit(PurchaseOrder $purchaseOrder)
     {
         abort_unless($purchaseOrder->isEditable(), 403, 'PO yang sudah diproses tidak bisa diedit.');
@@ -117,6 +132,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
             ]);
             $purchaseOrder->items()->delete();
             $this->syncItems($purchaseOrder, $data['items']);
+            $purchaseOrder->save();
         });
 
         return redirect()->route('purchase-orders.show', $purchaseOrder)->with('status', 'Purchase Order berhasil diperbarui.');
@@ -230,15 +246,24 @@ class PurchaseOrderController extends Controller implements HasMiddleware
             'amount' => ['required', 'numeric', 'min:0.01', 'max:' . max(0.01, $purchaseOrder->outstanding)],
             'method' => ['nullable', 'string', 'max:50'],
             'note' => ['nullable', 'string', 'max:255'],
+            'invoice_number' => ['nullable', 'string', 'max:100'],
+            'attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ]);
 
-        DB::transaction(function () use ($purchaseOrder, $validated) {
+        $attachmentPath = null;
+        if ($request->hasFile('attachment')) {
+            $attachmentPath = $request->file('attachment')->store('supplier-invoices', 'public');
+        }
+
+        DB::transaction(function () use ($purchaseOrder, $validated, $attachmentPath) {
             $purchaseOrder->payments()->create([
                 'user_id' => auth()->id(),
                 'date' => $validated['date'],
                 'amount' => $validated['amount'],
                 'method' => $validated['method'] ?? null,
                 'note' => $validated['note'] ?? null,
+                'invoice_number' => $validated['invoice_number'] ?? null,
+                'attachment' => $attachmentPath,
             ]);
             $purchaseOrder->increment('paid_amount', $validated['amount']);
         });

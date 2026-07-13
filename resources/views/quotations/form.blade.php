@@ -61,7 +61,9 @@
                                         <td class="px-3 py-2 align-top">
                                             <select :name="`items[${i}][product_id]`" x-model="row.product_id" @change="onProductChange(row)" class="form-input min-w-[14rem]" required>
                                                 <option value="">— Pilih —</option>
-                                                <template x-for="p in products" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
+                                                @foreach ($products as $p)
+                                                    <option value="{{ $p->id }}">{{ $p->code }} — {{ $p->name }}</option>
+                                                @endforeach
                                             </select>
                                         </td>
                                         <td class="px-3 py-2 align-top">
