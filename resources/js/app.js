@@ -73,4 +73,53 @@ window.orderForm = function (cfg) {
     };
 };
 
+/**
+ * Tanggal dokumen + jatuh tempo. Jatuh tempo diisi otomatis dari termin
+ * supplier/pelanggan, tapi tetap bisa ditimpa manual oleh user.
+ *
+ * @param {Object} cfg
+ * @param {Object} cfg.terms     {partyId: termin_hari}
+ * @param {String} cfg.partyId   supplier/pelanggan terpilih
+ * @param {String} cfg.date      tanggal dokumen (YYYY-MM-DD)
+ * @param {String} cfg.dueDate   jatuh tempo awal (kosong = ikut termin)
+ */
+window.dueDatePicker = function (cfg) {
+    return {
+        terms: cfg.terms || {},
+        partyId: cfg.partyId || '',
+        date: cfg.date || '',
+        dueDate: cfg.dueDate || '',
+        // Sekali user mengetik jatuh tempo sendiri, jangan ditimpa lagi oleh termin.
+        manual: !!cfg.dueDate,
+
+        init() {
+            this.$watch('dueDate', (val) => {
+                if (val !== this.termDueDate()) this.manual = true;
+            });
+            if (!this.dueDate) this.applyTerm();
+        },
+        term() {
+            const t = this.terms[this.partyId];
+            return t === undefined ? null : Number(t);
+        },
+        termDueDate() {
+            const term = this.term();
+            if (term === null || !this.date) return '';
+            const d = new Date(this.date + 'T00:00:00');
+            d.setDate(d.getDate() + term);
+            return d.toISOString().slice(0, 10);
+        },
+        applyTerm() {
+            if (this.manual) return;
+            this.dueDate = this.termDueDate();
+        },
+        termLabel() {
+            const term = this.term();
+            if (term === null) return 'Ikut termin setelah pilih supplier/pelanggan.';
+            if (this.manual) return `Diisi manual · termin ${term} hari.`;
+            return `Otomatis dari termin ${term} hari.`;
+        },
+    };
+};
+
 Alpine.start();

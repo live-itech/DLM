@@ -16,7 +16,7 @@ class InvoiceController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('permission:invoices.view', only: ['index', 'show', 'pdf']),
-            new Middleware('permission:invoices.update', only: ['storePayment']),
+            new Middleware('permission:invoices.update', only: ['storePayment', 'updateDates']),
         ];
     }
 
@@ -52,6 +52,19 @@ class InvoiceController extends Controller implements HasMiddleware
         $invoice->load(['salesOrder.customer', 'salesOrder.items.product.unit', 'payments']);
 
         return view('invoices.show', compact('invoice'));
+    }
+
+    /** Ubah tanggal invoice & tanggal jatuh tempo. */
+    public function updateDates(Request $request, Invoice $invoice)
+    {
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:date'],
+        ]);
+
+        $invoice->update($validated);
+
+        return back()->with('status', 'Tanggal invoice diperbarui.');
     }
 
     public function storePayment(Request $request, Invoice $invoice)

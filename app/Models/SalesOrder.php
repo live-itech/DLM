@@ -10,13 +10,14 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class SalesOrder extends Model
 {
     protected $fillable = [
-        'so_number', 'customer_id', 'user_id', 'date', 'status',
+        'so_number', 'customer_id', 'user_id', 'date', 'due_date', 'status',
         'is_taxable', 'ppn_rate', 'subtotal', 'discount', 'dpp', 'ppn',
         'total', 'stock_deducted', 'notes',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'due_date' => 'date',
         'is_taxable' => 'boolean',
         'stock_deducted' => 'boolean',
         'ppn_rate' => 'decimal:2',

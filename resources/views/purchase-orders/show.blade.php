@@ -77,10 +77,18 @@
                     @endcan
                 </div>
                 @can('purchase-orders.update')
-                    <form x-show="open" x-cloak method="POST" action="{{ route('purchase-orders.payments.store', $order) }}" class="mb-3 grid grid-cols-1 gap-2 rounded-lg bg-gray-50 p-3 sm:grid-cols-4">
+                    <form x-show="open" x-cloak method="POST" action="{{ route('purchase-orders.payments.store', $order) }}"
+                          class="mb-3 grid grid-cols-1 gap-2 rounded-lg bg-gray-50 p-3 sm:grid-cols-4"
+                          x-data="{ amount: '', outstanding: {{ number_format($order->outstanding, 2, '.', '') }} }">
                         @csrf
                         <input type="date" name="date" value="{{ now()->toDateString() }}" class="form-input" required>
-                        <input type="number" step="0.01" name="amount" placeholder="Jumlah" class="form-input" max="{{ $order->outstanding }}" required>
+                        <div class="relative">
+                            <input type="number" step="0.01" name="amount" x-model="amount" placeholder="Jumlah" class="form-input pr-16" :max="outstanding" required>
+                            <button type="button" @click="amount = outstanding"
+                                    class="absolute inset-y-1 right-1 rounded-md bg-gold-100 px-2 text-xs font-semibold text-gold-800 hover:bg-gold-200">
+                                Lunas
+                            </button>
+                        </div>
                         <input type="text" name="method" placeholder="Metode (transfer/tunai)" class="form-input">
                         <button class="btn-gold">Simpan</button>
                     </form>
@@ -100,7 +108,14 @@
             <div class="card space-y-3">
                 <div class="flex items-center justify-between"><span class="text-sm text-gray-500">Status</span><span class="badge {{ $statusColor[$order->status] ?? 'bg-gray-100' }}">{{ $order->status_label }}</span></div>
                 <div class="flex justify-between text-sm"><span class="text-gray-500">Supplier</span><span class="font-medium text-navy">{{ $order->supplier->name }}</span></div>
-                <div class="flex justify-between text-sm"><span class="text-gray-500">Tanggal</span><span>{{ $order->date->format('d/m/Y') }}</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-500">Tanggal PO</span><span>{{ $order->date->format('d/m/Y') }}</span></div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">Jatuh Tempo</span>
+                    <span class="{{ $order->is_overdue ? 'font-medium text-red-600' : '' }}">
+                        {{ $order->due_date?->format('d/m/Y') ?? '—' }}
+                        @if ($order->is_overdue)<span class="badge ml-1 bg-red-100 text-red-600">lewat tempo</span>@endif
+                    </span>
+                </div>
                 <div class="space-y-1.5 border-t border-gray-100 pt-3 text-sm">
                     <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span>Rp {{ number_format($order->subtotal,0,',','.') }}</span></div>
                     <div class="flex justify-between"><span class="text-gray-500">Diskon</span><span>Rp {{ number_format($order->discount,0,',','.') }}</span></div>

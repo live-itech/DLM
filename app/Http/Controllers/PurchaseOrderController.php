@@ -63,6 +63,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
                 'supplier_id' => $data['supplier_id'],
                 'user_id' => auth()->id(),
                 'date' => $data['date'],
+                'due_date' => $data['due_date'],
                 'status' => 'draft',
                 'is_taxable' => $data['is_taxable'],
                 'ppn_rate' => $data['ppn_rate'],
@@ -108,6 +109,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
             $purchaseOrder->update([
                 'supplier_id' => $data['supplier_id'],
                 'date' => $data['date'],
+                'due_date' => $data['due_date'],
                 'is_taxable' => $data['is_taxable'],
                 'ppn_rate' => $data['ppn_rate'],
                 'discount' => $data['discount'],
@@ -251,6 +253,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
         $data = $request->validate([
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:date'],
             'is_taxable' => ['nullable', 'boolean'],
             'ppn_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             'discount' => ['nullable', 'numeric', 'min:0'],
@@ -264,6 +267,9 @@ class PurchaseOrderController extends Controller implements HasMiddleware
 
         $data['is_taxable'] = $request->boolean('is_taxable');
         $data['discount'] = (float) ($data['discount'] ?? 0);
+        // Jatuh tempo kosong -> pakai termin supplier.
+        $data['due_date'] = $data['due_date']
+            ?? Supplier::find($data['supplier_id'])?->dueDateFrom($data['date']);
 
         return $data;
     }

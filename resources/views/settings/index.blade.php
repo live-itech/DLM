@@ -8,6 +8,7 @@
         <div class="flex gap-2 border-b border-gray-200">
             <button @click="tab='company'" :class="tab==='company' ? 'border-gold text-gold-700' : 'border-transparent text-gray-500'" class="border-b-2 px-4 py-2 text-sm font-medium">Profil Perusahaan</button>
             <button @click="tab='tax'" :class="tab==='tax' ? 'border-gold text-gold-700' : 'border-transparent text-gray-500'" class="border-b-2 px-4 py-2 text-sm font-medium">Pajak & Faktur</button>
+            <button @click="tab='bank'" :class="tab==='bank' ? 'border-gold text-gold-700' : 'border-transparent text-gray-500'" class="border-b-2 px-4 py-2 text-sm font-medium">Pembayaran & Tanda Tangan</button>
         </div>
 
         {{-- Profil Perusahaan --}}
@@ -80,6 +81,38 @@
                     </div>
                 </div>
                 <div class="mt-6"><button class="btn-gold">Simpan Pajak</button></div>
+            </form>
+        </div>
+
+        {{-- Rekening & penanda tangan (dipakai di cetakan invoice) --}}
+        <div x-show="tab==='bank'" x-cloak class="card max-w-3xl">
+            <form method="POST" action="{{ route('settings.bank') }}">
+                @csrf @method('PUT')
+                <h3 class="mb-3 font-semibold text-navy">Rekening Pembayaran</h3>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="form-label">Nama Bank</label>
+                        <input type="text" name="bank_name" value="{{ old('bank_name', Setting::get('bank_name')) }}" class="form-input" placeholder="mis. Bank BCA">
+                    </div>
+                    <div>
+                        <label class="form-label">No. Rekening</label>
+                        <input type="text" name="bank_account_no" value="{{ old('bank_account_no', Setting::get('bank_account_no')) }}" class="form-input">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="form-label">Atas Nama (A/N)</label>
+                        <input type="text" name="bank_account_holder" value="{{ old('bank_account_holder', Setting::get('bank_account_holder')) }}" class="form-input">
+                    </div>
+                </div>
+
+                <h3 class="mb-3 mt-6 border-t border-gray-100 pt-5 font-semibold text-navy">Penanda Tangan Dokumen</h3>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="form-label">Nama Penanda Tangan</label>
+                        <input type="text" name="director_name" value="{{ old('director_name', Setting::get('director_name')) }}" class="form-input">
+                    </div>
+                </div>
+                <p class="mt-3 text-xs text-gray-400">Nama ini muncul di kolom tanda tangan "Hormat kami" pada cetakan invoice (tanpa jabatan).</p>
+                <div class="mt-6"><button class="btn-gold">Simpan</button></div>
             </form>
         </div>
     </div>

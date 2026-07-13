@@ -21,21 +21,35 @@
 
         <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
             <div class="space-y-5 lg:col-span-2">
-                <div class="card grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div class="card grid grid-cols-1 gap-4 sm:grid-cols-2"
+                     x-data="dueDatePicker({
+                        terms: {{ Illuminate\Support\Js::from($suppliers->pluck('payment_term_days', 'id')) }},
+                        partyId: '{{ old('supplier_id', $order->supplier_id) }}',
+                        date: '{{ old('date', optional($order->date)->toDateString() ?? now()->toDateString()) }}',
+                        dueDate: '{{ old('due_date', optional($order->due_date)->toDateString() ?? '') }}',
+                     })">
                     <div>
                         <label class="form-label">Supplier <span class="text-red-500">*</span></label>
-                        <select name="supplier_id" class="form-input" required>
+                        <select name="supplier_id" x-model="partyId" @change="applyTerm()" class="form-input" required>
                             <option value="">— Pilih supplier —</option>
                             @foreach ($suppliers as $s)
-                                <option value="{{ $s->id }}" @selected(old('supplier_id', $order->supplier_id) == $s->id)>{{ $s->name }}</option>
+                                <option value="{{ $s->id }}">{{ $s->name }}</option>
                             @endforeach
                         </select>
                         <x-input-error :messages="$errors->get('supplier_id')" class="mt-1" />
                     </div>
-                    <div>
-                        <label class="form-label">Tanggal <span class="text-red-500">*</span></label>
-                        <input type="date" name="date" value="{{ old('date', optional($order->date)->toDateString() ?? now()->toDateString()) }}" class="form-input" required>
-                        <x-input-error :messages="$errors->get('date')" class="mt-1" />
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">Tanggal PO <span class="text-red-500">*</span></label>
+                            <input type="date" name="date" x-model="date" @change="applyTerm()" class="form-input" required>
+                            <x-input-error :messages="$errors->get('date')" class="mt-1" />
+                        </div>
+                        <div>
+                            <label class="form-label">Jatuh Tempo</label>
+                            <input type="date" name="due_date" x-model="dueDate" :min="date" class="form-input">
+                            <p class="mt-1 text-xs text-gray-400" x-text="termLabel()"></p>
+                            <x-input-error :messages="$errors->get('due_date')" class="mt-1" />
+                        </div>
                     </div>
                 </div>
 

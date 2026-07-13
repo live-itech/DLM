@@ -9,13 +9,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class PurchaseOrder extends Model
 {
     protected $fillable = [
-        'po_number', 'supplier_id', 'user_id', 'date', 'status',
+        'po_number', 'supplier_id', 'user_id', 'date', 'due_date', 'status',
         'is_taxable', 'ppn_rate', 'subtotal', 'discount', 'dpp', 'ppn',
         'total', 'paid_amount', 'notes',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'due_date' => 'date',
         'is_taxable' => 'boolean',
         'ppn_rate' => 'decimal:2',
         'subtotal' => 'decimal:2',
@@ -67,6 +68,14 @@ class PurchaseOrder extends Model
     public function getOutstandingAttribute(): float
     {
         return (float) $this->total - (float) $this->paid_amount;
+    }
+
+    public function getIsOverdueAttribute(): bool
+    {
+        return $this->outstanding > 0.009
+            && ! in_array($this->status, ['draft', 'cancelled'])
+            && $this->due_date
+            && $this->due_date->isPast();
     }
 
     public function getPaymentStatusAttribute(): string

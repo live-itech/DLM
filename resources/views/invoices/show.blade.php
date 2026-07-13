@@ -9,18 +9,6 @@
         <x-slot name="action">
             <a href="{{ route('invoices.index') }}" class="btn-outline">Kembali</a>
             <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-outline">Cetak PDF</a>
-            @can('tax-invoices.create')
-                @if ($so->is_taxable && $so->ppn > 0)
-                    @php $existingTax = \App\Models\TaxInvoice::where('invoice_id', $invoice->id)->first(); @endphp
-                    @if ($existingTax)
-                        <a href="{{ route('tax-invoices.show', $existingTax) }}" class="btn-outline">Lihat Faktur Pajak</a>
-                    @else
-                        <form method="POST" action="{{ route('invoices.generate-tax', $invoice) }}" x-data @submit.prevent="if(confirm('Buat Faktur Pajak Keluaran dengan nomor otomatis?')) $el.submit()">
-                            @csrf<button class="btn-gold">Buat Faktur Pajak</button>
-                        </form>
-                    @endif
-                @endif
-            @endcan
         </x-slot>
     </x-page-header>
 
@@ -59,10 +47,18 @@
                     @endcan
                 </div>
                 @can('invoices.update')
-                    <form x-show="open" x-cloak method="POST" action="{{ route('invoices.payments.store', $invoice) }}" class="mb-3 grid grid-cols-1 gap-2 rounded-lg bg-gray-50 p-3 sm:grid-cols-4">
+                    <form x-show="open" x-cloak method="POST" action="{{ route('invoices.payments.store', $invoice) }}"
+                          class="mb-3 grid grid-cols-1 gap-2 rounded-lg bg-gray-50 p-3 sm:grid-cols-4"
+                          x-data="{ amount: '', outstanding: {{ number_format($invoice->outstanding, 2, '.', '') }} }">
                         @csrf
                         <input type="date" name="date" value="{{ now()->toDateString() }}" class="form-input" required>
-                        <input type="number" step="0.01" name="amount" placeholder="Jumlah" class="form-input" max="{{ $invoice->outstanding }}" required>
+                        <div class="relative">
+                            <input type="number" step="0.01" name="amount" x-model="amount" placeholder="Jumlah" class="form-input pr-16" :max="outstanding" required>
+                            <button type="button" @click="amount = outstanding"
+                                    class="absolute inset-y-1 right-1 rounded-md bg-gold-100 px-2 text-xs font-semibold text-gold-800 hover:bg-gold-200">
+                                Lunas
+                            </button>
+                        </div>
                         <input type="text" name="method" placeholder="Metode" class="form-input">
                         <button class="btn-gold">Simpan</button>
                     </form>
@@ -82,8 +78,44 @@
             <div class="card space-y-3">
                 <div class="flex items-center justify-between"><span class="text-sm text-gray-500">Status</span><span class="badge {{ $statusColor[$invoice->status] ?? 'bg-gray-100' }}">{{ $invoice->status_label }}</span></div>
                 <div class="flex justify-between text-sm"><span class="text-gray-500">Pelanggan</span><span class="font-medium text-navy">{{ $so->customer->name }}</span></div>
-                <div class="flex justify-between text-sm"><span class="text-gray-500">Tanggal</span><span>{{ $invoice->date->format('d/m/Y') }}</span></div>
-                <div class="flex justify-between text-sm"><span class="text-gray-500">Jatuh Tempo</span><span class="{{ $invoice->is_overdue ? 'font-medium text-red-600' : '' }}">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</span></div>
+                <div x-data="{ editing: false }">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Tanggal</span>
+                        <span>{{ $invoice->date->format('d/m/Y') }}</span>
+                    </div>
+                    <div class="mt-3 flex justify-between text-sm">
+                        <span class="text-gray-500">Jatuh Tempo</span>
+                        <span class="{{ $invoice->is_overdue ? 'font-medium text-red-600' : '' }}">
+                            {{ $invoice->due_date?->format('d/m/Y') ?? '—' }}
+                            @if ($invoice->is_overdue)<span class="badge ml-1 bg-red-100 text-red-600">lewat tempo</span>@endif
+                        </span>
+                    </div>
+                    @can('invoices.update')
+                        <button type="button" x-show="! editing" @click="editing = true" class="mt-2 text-xs text-gold-700 hover:underline">Ubah tanggal</button>
+                        <form x-show="editing" x-cloak method="POST" action="{{ route('invoices.dates.update', $invoice) }}"
+                              class="mt-3 space-y-2 rounded-lg bg-gray-50 p-3"
+                              x-data="dueDatePicker({
+                                 terms: {{ Illuminate\Support\Js::from([$so->customer_id => $so->customer->payment_term_days]) }},
+                                 partyId: '{{ $so->customer_id }}',
+                                 date: '{{ $invoice->date->toDateString() }}',
+                                 dueDate: '{{ $invoice->due_date?->toDateString() ?? '' }}',
+                              })">
+                            @csrf @method('PATCH')
+                            <div>
+                                <label class="form-label text-xs">Tanggal Invoice</label>
+                                <input type="date" name="date" x-model="date" @change="applyTerm()" class="form-input" required>
+                            </div>
+                            <div>
+                                <label class="form-label text-xs">Jatuh Tempo</label>
+                                <input type="date" name="due_date" x-model="dueDate" :min="date" class="form-input">
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="btn-gold flex-1 text-sm">Simpan</button>
+                                <button type="button" @click="editing = false" class="btn-outline text-sm">Batal</button>
+                            </div>
+                        </form>
+                    @endcan
+                </div>
                 <div class="space-y-1.5 border-t border-gray-100 pt-3 text-sm">
                     <div class="flex justify-between"><span class="text-gray-500">DPP</span><span>Rp {{ number_format($so->dpp,0,',','.') }}</span></div>
                     @if ($so->is_taxable)

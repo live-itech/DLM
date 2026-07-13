@@ -32,6 +32,11 @@ class MasterDataSeeder extends Seeder
             'company_phone'   => '021-38939414 / 0859-3319-1346',
             'company_email'   => 'anggihdimas@gmail.com',
             'company_pjt'     => 'Nia Love Fiana Puteri (D.III Farmasi)',
+            // Rekening pembayaran & penanda tangan (tampil di cetakan invoice)
+            'bank_name'           => 'Bank BCA',
+            'bank_account_no'     => '8011111629',
+            'bank_account_holder' => 'PT DIMAS LOVE MEDIKA',
+            'director_name'       => 'M Anggih Dimas W',
             // Pajak
             'ppn_rate'            => '11',
             'fp_transaction_code' => '04',

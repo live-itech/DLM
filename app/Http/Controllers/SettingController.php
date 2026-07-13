@@ -31,6 +31,21 @@ class SettingController extends Controller
         return back()->with('status', 'Profil perusahaan berhasil disimpan.');
     }
 
+    /** Rekening pembayaran & penanda tangan dokumen. */
+    public function updateBank(Request $request)
+    {
+        $data = $request->validate([
+            'bank_name' => ['nullable', 'string', 'max:100'],
+            'bank_account_no' => ['nullable', 'string', 'max:50'],
+            'bank_account_holder' => ['nullable', 'string', 'max:255'],
+            'director_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        Setting::putMany($data);
+
+        return back()->with('status', 'Info pembayaran & tanda tangan berhasil disimpan.');
+    }
+
     public function updateTax(Request $request)
     {
         $data = $request->validate([

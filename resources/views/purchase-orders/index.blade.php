@@ -33,7 +33,8 @@
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-100">
                 <thead class="bg-gray-50"><tr>
-                    <th class="table-th">No. PO</th><th class="table-th">Tanggal</th><th class="table-th">Supplier</th>
+                    <th class="table-th">No. PO</th><th class="table-th">Tanggal</th><th class="table-th">Jatuh Tempo</th>
+                    <th class="table-th">Supplier</th>
                     <th class="table-th text-right">Total</th><th class="table-th text-right">Sisa Hutang</th>
                     <th class="table-th text-center">Status</th><th class="table-th text-right">Aksi</th>
                 </tr></thead>
@@ -42,6 +43,10 @@
                         <tr class="hover:bg-gray-50">
                             <td class="table-td font-mono text-xs font-medium text-navy">{{ $po->po_number }}</td>
                             <td class="table-td text-gray-500">{{ $po->date->format('d/m/Y') }}</td>
+                            <td class="table-td {{ $po->is_overdue ? 'font-medium text-red-600' : 'text-gray-500' }}">
+                                {{ $po->due_date?->format('d/m/Y') ?? '—' }}
+                                @if ($po->is_overdue)<span class="badge ml-1 bg-red-100 text-red-600">lewat tempo</span>@endif
+                            </td>
                             <td class="table-td">{{ $po->supplier->name }}</td>
                             <td class="table-td text-right font-medium text-navy">Rp {{ number_format($po->total, 0, ',', '.') }}</td>
                             <td class="table-td text-right {{ $po->outstanding > 0 && $po->status !== 'cancelled' ? 'text-red-600' : 'text-gray-400' }}">
@@ -51,7 +56,7 @@
                             <td class="table-td text-right"><a href="{{ route('purchase-orders.show', $po) }}" class="text-gold-700 hover:underline">Detail</a></td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="table-td py-10 text-center text-gray-400">Belum ada purchase order.</td></tr>
+                        <tr><td colspan="8" class="table-td py-10 text-center text-gray-400">Belum ada purchase order.</td></tr>
                     @endforelse
                 </tbody>
             </table>

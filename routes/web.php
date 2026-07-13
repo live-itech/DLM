@@ -56,6 +56,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserActive::class])->group
 
     // ================= INVOICE / PIUTANG =================
     Route::post('invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])->name('invoices.payments.store');
+    Route::patch('invoices/{invoice}/dates', [InvoiceController::class, 'updateDates'])->name('invoices.dates.update');
     Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
     Route::post('invoices/{invoice}/tax-invoice', [TaxInvoiceController::class, 'generate'])->name('invoices.generate-tax');
     Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
@@ -96,6 +97,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserActive::class])->group
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
         Route::put('/settings/company', [SettingController::class, 'updateCompany'])->name('settings.company');
         Route::put('/settings/tax', [SettingController::class, 'updateTax'])->name('settings.tax');
+        Route::put('/settings/bank', [SettingController::class, 'updateBank'])->name('settings.bank');
     });
 
     // ================= PENGGUNA (Admin) =================

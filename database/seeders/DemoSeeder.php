@@ -81,6 +81,7 @@ class DemoSeeder extends Seeder
                 'po_number' => 'PO/' . $date->format('ym') . '/' . str_pad((string) (PurchaseOrder::max('id') + 1), 5, '0', STR_PAD_LEFT),
                 'supplier_id' => $supplier->id,
                 'date' => $date,
+                'due_date' => $supplier->dueDateFrom($date),
                 'status' => 'ordered',
                 'is_taxable' => $taxable,
                 'ppn_rate' => $this->ppnRate,

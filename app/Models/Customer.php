@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 
@@ -18,6 +20,12 @@ class Customer extends Model
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    /** Jatuh tempo default = tanggal transaksi + termin pelanggan. */
+    public function dueDateFrom(mixed $date): CarbonInterface
+    {
+        return Carbon::parse($date)->addDays((int) $this->payment_term_days);
+    }
 
     public function getActivitylogOptions(): LogOptions
     {

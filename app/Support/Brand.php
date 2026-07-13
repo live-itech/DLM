@@ -30,6 +30,10 @@ class Brand
             'phone' => Setting::get('company_phone'),
             'email' => Setting::get('company_email'),
             'pjt' => Setting::get('company_pjt'),
+            'bank_name' => Setting::get('bank_name'),
+            'bank_account_no' => Setting::get('bank_account_no'),
+            'bank_account_holder' => Setting::get('bank_account_holder'),
+            'director_name' => Setting::get('director_name'),
         ];
     }
 }

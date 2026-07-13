@@ -199,7 +199,8 @@ class ReportController extends Controller implements HasMiddleware
             ->values();
 
         $aged = $orders->map(function ($o) {
-            $due = $o->date?->copy()->addDays((int) $o->supplier->payment_term_days);
+            // PO lama tanpa jatuh tempo eksplisit: jatuh balik ke termin supplier.
+            $due = $o->due_date ?? $o->supplier->dueDateFrom($o->date);
             $o->due_date_calc = $due;
             $o->bucket = $this->agingBucket($due);
 

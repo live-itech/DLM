@@ -19,9 +19,33 @@
                     </form>
                 @endif
                 @if (in_array($order->status, ['confirmed','shipped']) && ! $order->invoice)
-                    <form method="POST" action="{{ route('sales-orders.to-invoice', $order) }}" x-data @submit.prevent="if(confirm('Buat invoice dari SO ini?')) $el.submit()">
-                        @csrf<button class="btn-gold">Buat Invoice</button>
-                    </form>
+                    <div class="relative" x-data="{ open: false }" @keydown.escape.window="open = false">
+                        <button type="button" @click="open = ! open" class="btn-gold">Buat Invoice</button>
+                        <div x-show="open" x-cloak @click.outside="open = false"
+                             class="absolute right-0 z-20 mt-2 w-80 rounded-xl border border-gray-100 bg-white p-4 text-left shadow-lg">
+                            <h4 class="mb-3 font-semibold text-navy">Buat Invoice</h4>
+                            <form method="POST" action="{{ route('sales-orders.to-invoice', $order) }}"
+                                  class="space-y-3"
+                                  x-data="dueDatePicker({
+                                     terms: {{ Illuminate\Support\Js::from([$order->customer_id => $order->customer->payment_term_days]) }},
+                                     partyId: '{{ $order->customer_id }}',
+                                     date: '{{ now()->toDateString() }}',
+                                     dueDate: '{{ $order->due_date?->toDateString() ?? '' }}',
+                                  })">
+                                @csrf
+                                <div>
+                                    <label class="form-label">Tanggal Invoice <span class="text-red-500">*</span></label>
+                                    <input type="date" name="date" x-model="date" @change="applyTerm()" class="form-input" required>
+                                </div>
+                                <div>
+                                    <label class="form-label">Jatuh Tempo</label>
+                                    <input type="date" name="due_date" x-model="dueDate" :min="date" class="form-input">
+                                    <p class="mt-1 text-xs text-gray-400" x-text="termLabel()"></p>
+                                </div>
+                                <button class="btn-gold w-full">Simpan Invoice</button>
+                            </form>
+                        </div>
+                    </div>
                 @endif
                 @if ($order->isCancellable())
                     <form method="POST" action="{{ route('sales-orders.cancel', $order) }}" x-data @submit.prevent="if(confirm('Batalkan SO ini?')) $el.submit()">
@@ -71,7 +95,8 @@
                     <span class="badge {{ $statusColor[$order->status] ?? 'bg-gray-100' }}">{{ $order->status_label }}</span>
                 </div>
                 <div class="flex justify-between text-sm"><span class="text-gray-500">Pelanggan</span><span class="font-medium text-navy">{{ $order->customer->name }}</span></div>
-                <div class="flex justify-between text-sm"><span class="text-gray-500">Tanggal</span><span>{{ $order->date->format('d/m/Y') }}</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-500">Tanggal SO</span><span>{{ $order->date->format('d/m/Y') }}</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-500">Jatuh Tempo</span><span>{{ $order->due_date?->format('d/m/Y') ?? '—' }}</span></div>
                 <div class="flex justify-between text-sm"><span class="text-gray-500">Dibuat oleh</span><span>{{ $order->user?->name ?? '—' }}</span></div>
                 <div class="space-y-1.5 border-t border-gray-100 pt-3 text-sm">
                     <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span>Rp {{ number_format($order->subtotal,0,',','.') }}</span></div>

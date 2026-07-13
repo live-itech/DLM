@@ -65,6 +65,7 @@ class SalesOrderController extends Controller implements HasMiddleware
                 'customer_id' => $data['customer_id'],
                 'user_id' => auth()->id(),
                 'date' => $data['date'],
+                'due_date' => $data['due_date'],
                 'status' => 'draft',
                 'is_taxable' => $data['is_taxable'],
                 'ppn_rate' => $data['ppn_rate'],
@@ -109,6 +110,7 @@ class SalesOrderController extends Controller implements HasMiddleware
             $salesOrder->update([
                 'customer_id' => $data['customer_id'],
                 'date' => $data['date'],
+                'due_date' => $data['due_date'],
                 'is_taxable' => $data['is_taxable'],
                 'ppn_rate' => $data['ppn_rate'],
                 'discount' => $data['discount'],
@@ -183,19 +185,26 @@ class SalesOrderController extends Controller implements HasMiddleware
     }
 
     /** Buat Invoice dari SO. */
-    public function toInvoice(SalesOrder $salesOrder)
+    public function toInvoice(Request $request, SalesOrder $salesOrder)
     {
         abort_unless(in_array($salesOrder->status, ['confirmed', 'shipped']), 403, 'SO harus dikonfirmasi dulu.');
         abort_if($salesOrder->invoice()->exists(), 422, 'SO ini sudah memiliki invoice.');
 
-        $invoice = DB::transaction(function () use ($salesOrder) {
-            $term = (int) ($salesOrder->customer->payment_term_days ?? 0);
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:date'],
+        ]);
+
+        $invoice = DB::transaction(function () use ($salesOrder, $validated) {
             $invoice = Invoice::create([
                 'invoice_number' => 'TMP-' . Str::random(24),
                 'sales_order_id' => $salesOrder->id,
                 'user_id' => auth()->id(),
-                'date' => now()->toDateString(),
-                'due_date' => now()->addDays($term)->toDateString(),
+                'date' => $validated['date'],
+                // Jatuh tempo kosong -> ikut jatuh tempo SO, lalu termin pelanggan.
+                'due_date' => $validated['due_date']
+                    ?? $salesOrder->due_date
+                    ?? $salesOrder->customer->dueDateFrom($validated['date']),
                 'status' => 'unpaid',
                 'total' => $salesOrder->total,
                 'paid_amount' => 0,
@@ -216,6 +225,7 @@ class SalesOrderController extends Controller implements HasMiddleware
         $data = $request->validate([
             'customer_id' => ['required', 'exists:customers,id'],
             'date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:date'],
             'is_taxable' => ['nullable', 'boolean'],
             'ppn_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             'discount' => ['nullable', 'numeric', 'min:0'],
@@ -230,6 +240,9 @@ class SalesOrderController extends Controller implements HasMiddleware
 
         $data['is_taxable'] = $request->boolean('is_taxable');
         $data['discount'] = (float) ($data['discount'] ?? 0);
+        // Jatuh tempo kosong -> pakai termin pelanggan.
+        $data['due_date'] = $data['due_date']
+            ?? Customer::find($data['customer_id'])?->dueDateFrom($data['date']);
 
         return $data;
     }
