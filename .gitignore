@@ -25,3 +25,6 @@ Thumbs.db
 
 # File setup lokal (berisi kredensial dev)
 /setup-db.sql
+/setup-db.sh
+/backup-db.sh
+/backups/
