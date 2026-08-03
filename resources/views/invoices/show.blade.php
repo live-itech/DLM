@@ -8,11 +8,6 @@
     <x-page-header :title="$invoice->invoice_number" :subtitle="'Dari SO ' . $so->so_number">
         <x-slot name="action">
             <a href="{{ route('invoices.index') }}" class="btn-outline">Kembali</a>
-            @can('invoices.update')
-                @if ($invoice->status !== 'paid')
-                    <a href="{{ route('invoices.edit', $invoice) }}" class="btn-outline">Edit Item</a>
-                @endif
-            @endcan
             <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-outline">Cetak PDF</a>
         </x-slot>
     </x-page-header>
