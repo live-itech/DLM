@@ -144,11 +144,16 @@
                         <div class="flex justify-between border-t border-gray-100 pt-2 text-base font-bold text-navy"><span>Total</span><span x-text="rp(total)"></span></div>
                     </div>
 
+                    @php $editingPosted = $order->exists && $order->status !== 'draft'; @endphp
                     <div class="flex flex-col gap-2 pt-2">
-                        <button type="submit" class="btn-gold w-full">Simpan (Draft)</button>
+                        <button type="submit" class="btn-gold w-full">{{ $editingPosted ? 'Simpan Perubahan' : 'Simpan (Draft)' }}</button>
                         <a href="{{ route('sales-orders.index') }}" class="btn-outline w-full">Batal</a>
                     </div>
-                    <p class="text-xs text-gray-400">SO tersimpan sebagai draft. Stok baru dikurangi saat SO dikonfirmasi.</p>
+                    @if ($editingPosted)
+                        <p class="text-xs text-gray-400">Perubahan item otomatis menyesuaikan stok@if ($order->invoice) &amp; memperbarui total invoice terkait@endif.</p>
+                    @else
+                        <p class="text-xs text-gray-400">SO tersimpan sebagai draft. Stok baru dikurangi saat SO dikonfirmasi.</p>
+                    @endif
                 </div>
             </div>
         </div>

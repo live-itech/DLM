@@ -66,6 +66,16 @@ class SalesOrder extends Model
         return $this->status === 'draft';
     }
 
+    /**
+     * Item SO boleh diedit selama SO belum selesai/batal.
+     * Invoice yang sudah lunas selalu membuat SO 'completed', sehingga
+     * SO ber-invoice-lunas otomatis ikut terkunci di sini.
+     */
+    public function isItemEditable(): bool
+    {
+        return in_array($this->status, ['draft', 'confirmed', 'shipped'], true);
+    }
+
     public function isCancellable(): bool
     {
         return in_array($this->status, ['draft', 'confirmed']) && ! $this->invoice()->exists();

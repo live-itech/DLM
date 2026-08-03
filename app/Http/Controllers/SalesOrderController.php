@@ -91,7 +91,7 @@ class SalesOrderController extends Controller implements HasMiddleware
 
     public function edit(SalesOrder $salesOrder)
     {
-        abort_unless($salesOrder->isEditable(), 403, 'SO yang sudah dikonfirmasi tidak bisa diedit.');
+        abort_unless($salesOrder->isItemEditable(), 403, 'SO ini tidak bisa diedit lagi (sudah selesai/batal).');
         $salesOrder->load('items');
 
         return view('sales-orders.form', [
@@ -101,25 +101,83 @@ class SalesOrderController extends Controller implements HasMiddleware
         ]);
     }
 
-    public function update(Request $request, SalesOrder $salesOrder)
+    public function update(Request $request, SalesOrder $salesOrder, StockService $stock)
     {
-        abort_unless($salesOrder->isEditable(), 403);
+        abort_unless($salesOrder->isItemEditable(), 403, 'SO ini tidak bisa diedit lagi.');
         $data = $this->validateData($request);
 
-        DB::transaction(function () use ($salesOrder, $data) {
-            $salesOrder->update([
-                'customer_id' => $data['customer_id'],
-                'date' => $data['date'],
-                'due_date' => $data['due_date'],
-                'is_taxable' => $data['is_taxable'],
-                'ppn_rate' => $data['ppn_rate'],
-                'discount' => $data['discount'],
-                'notes' => $data['notes'] ?? null,
-            ]);
-            $salesOrder->items()->delete();
-            $this->syncItems($salesOrder, $data['items']);
-            $salesOrder->save();
-        });
+        $invoice = $salesOrder->invoice; // hasOne, bisa null
+
+        // Pra-cek: total baru tak boleh lebih kecil dari yang sudah dibayar.
+        if ($invoice && (float) $invoice->paid_amount > 0) {
+            $newTotal = $this->previewTotal($data);
+            if ($newTotal + 0.009 < (float) $invoice->paid_amount) {
+                throw ValidationException::withMessages([
+                    'items' => 'Total baru (Rp ' . number_format($newTotal, 0, ',', '.') . ') lebih kecil dari yang sudah dibayar (Rp ' . number_format((float) $invoice->paid_amount, 0, ',', '.') . '). Sesuaikan pembayaran dulu.',
+                ]);
+            }
+        }
+
+        try {
+            DB::transaction(function () use ($salesOrder, $data, $stock, $invoice) {
+                $wasDeducted = (bool) $salesOrder->stock_deducted;
+
+                // 1. Kembalikan stok item lama bila SO sudah memotong stok.
+                if ($wasDeducted) {
+                    $salesOrder->load('items.product');
+                    foreach ($salesOrder->items as $old) {
+                        $stock->move(
+                            $old->product,
+                            (float) $old->qty,
+                            'in',
+                            'Edit SO ' . $salesOrder->so_number,
+                            $salesOrder->id,
+                            'Koreksi item: stok lama dikembalikan',
+                            preventNegative: false,
+                        );
+                    }
+                }
+
+                // 2. Perbarui header & ganti seluruh item.
+                $salesOrder->update([
+                    'customer_id' => $data['customer_id'],
+                    'date' => $data['date'],
+                    'due_date' => $data['due_date'],
+                    'is_taxable' => $data['is_taxable'],
+                    'ppn_rate' => $data['ppn_rate'],
+                    'discount' => $data['discount'],
+                    'notes' => $data['notes'] ?? null,
+                ]);
+                $salesOrder->items()->delete();
+                $this->syncItems($salesOrder, $data['items']);
+                $salesOrder->save();
+
+                // 3. Potong ulang stok untuk item baru bila SO berstatus terpotong.
+                if ($wasDeducted) {
+                    $salesOrder->load('items.product');
+                    foreach ($salesOrder->items as $new) {
+                        $stock->move(
+                            $new->product,
+                            -1 * (float) $new->qty,
+                            'out',
+                            'Edit SO ' . $salesOrder->so_number,
+                            $salesOrder->id,
+                            'Koreksi item: stok baru dipotong',
+                        );
+                    }
+                }
+
+                // 4. Sinkronkan invoice bila ada: rincian ikut SO, total dihitung ulang.
+                if ($invoice) {
+                    $invoice->update(['total' => $salesOrder->total]);
+                    if ((float) $invoice->paid_amount > 0) {
+                        $invoice->refreshPaymentStatus();
+                    }
+                }
+            });
+        } catch (\RuntimeException $e) {
+            throw ValidationException::withMessages(['stock' => $e->getMessage()]);
+        }
 
         return redirect()->route('sales-orders.show', $salesOrder)->with('status', 'Sales Order berhasil diperbarui.');
     }
@@ -261,6 +319,17 @@ class SalesOrderController extends Controller implements HasMiddleware
             ?? Customer::find($data['customer_id'])?->dueDateFrom($data['date']);
 
         return $data;
+    }
+
+    /** Hitung total (setelah pajak & diskon) dari payload item — untuk pra-cek. */
+    private function previewTotal(array $data): float
+    {
+        $itemsSubtotal = 0;
+        foreach ($data['items'] as $row) {
+            $itemsSubtotal += max(0, (float) $row['qty'] * (float) $row['sell_price'] - (float) ($row['discount'] ?? 0));
+        }
+
+        return Totals::compute($itemsSubtotal, (float) $data['discount'], (bool) $data['is_taxable'], (float) $data['ppn_rate'])['total'];
     }
 
     private function syncItems(SalesOrder $order, array $items): void

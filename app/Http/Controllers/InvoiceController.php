@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller implements HasMiddleware
 {
@@ -78,17 +79,47 @@ class InvoiceController extends Controller implements HasMiddleware
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
-        DB::transaction(function () use ($invoice, $validated) {
-            $invoice->payments()->create([
+        $duplicate = false;
+
+        DB::transaction(function () use ($invoice, $validated, &$duplicate) {
+            // Kunci baris invoice agar pembayaran ganda/berbarengan diproses berurutan.
+            $locked = Invoice::whereKey($invoice->getKey())->lockForUpdate()->first();
+
+            // Request kedua dari klik ganda: invoice mungkin sudah lunas.
+            abort_if($locked->status === 'paid', 422, 'Invoice sudah lunas.');
+
+            // Cegah duplikat: pembayaran identik (jumlah & tanggal) dalam 15 detik terakhir.
+            if ($locked->payments()
+                ->where('amount', $validated['amount'])
+                ->whereDate('date', $validated['date'])
+                ->where('created_at', '>=', now()->subSeconds(15))
+                ->exists()
+            ) {
+                $duplicate = true;
+
+                return;
+            }
+
+            // Re-cek sisa tagihan dengan data terkunci (anti balapan).
+            $outstanding = (float) $locked->total - (float) $locked->payments()->sum('amount');
+            if ((float) $validated['amount'] > $outstanding + 0.009) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Jumlah melebihi sisa tagihan (Rp ' . number_format($outstanding, 0, ',', '.') . ').',
+                ]);
+            }
+
+            $locked->payments()->create([
                 'user_id' => auth()->id(),
                 'date' => $validated['date'],
                 'amount' => $validated['amount'],
                 'method' => $validated['method'] ?? null,
                 'note' => $validated['note'] ?? null,
             ]);
-            $invoice->refreshPaymentStatus();
+            $locked->refreshPaymentStatus();
         });
 
-        return back()->with('status', 'Pembayaran pelanggan tercatat.');
+        return back()->with('status', $duplicate
+            ? 'Pembayaran identik baru saja tercatat — duplikat diabaikan.'
+            : 'Pembayaran pelanggan tercatat.');
     }
 }

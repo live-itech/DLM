@@ -49,7 +49,8 @@
                 @can('invoices.update')
                     <form x-show="open" x-cloak method="POST" action="{{ route('invoices.payments.store', $invoice) }}"
                           class="mb-3 grid grid-cols-1 gap-2 rounded-lg bg-gray-50 p-3 sm:grid-cols-4"
-                          x-data="{ amount: '', outstanding: {{ number_format($invoice->outstanding, 2, '.', '') }} }">
+                          x-data="{ amount: '', outstanding: {{ number_format($invoice->outstanding, 2, '.', '') }}, submitting: false }"
+                          @submit="submitting = true">
                         @csrf
                         <input type="date" name="date" value="{{ now()->toDateString() }}" class="form-input" required>
                         <div class="relative">
@@ -60,7 +61,7 @@
                             </button>
                         </div>
                         <input type="text" name="method" placeholder="Metode" class="form-input">
-                        <button class="btn-gold">Simpan</button>
+                        <button class="btn-gold" :disabled="submitting" :class="submitting && 'opacity-50 cursor-not-allowed'" x-text="submitting ? 'Menyimpan…' : 'Simpan'">Simpan</button>
                     </form>
                 @endcan
                 @forelse ($invoice->payments as $p)

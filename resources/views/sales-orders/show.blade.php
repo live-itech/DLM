@@ -12,8 +12,10 @@
         <x-slot name="action">
             <a href="{{ route('sales-orders.index') }}" class="btn-outline">Kembali</a>
             @can('sales-orders.update')
-                @if ($order->isEditable())
+                @if ($order->isItemEditable())
                     <a href="{{ route('sales-orders.edit', $order) }}" class="btn-outline">Edit</a>
+                @endif
+                @if ($order->isEditable())
                     <form method="POST" action="{{ route('sales-orders.confirm', $order) }}" x-data @submit.prevent="if(confirm('Konfirmasi SO ini? Stok akan dikurangi.')) $el.submit()">
                         @csrf<button class="btn-gold">Konfirmasi & Kurangi Stok</button>
                     </form>

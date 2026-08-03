@@ -322,4 +322,165 @@ class SalesOrderInvoiceFlowTest extends TestCase
         $this->actingAs($this->admin)->post(route('sales-orders.cancel', $so))->assertForbidden();
         $this->assertSame('confirmed', $so->fresh()->status);
     }
+
+    // ---------------------------------------------------------------
+    // PEMBAYARAN — cegah double-submit
+    // ---------------------------------------------------------------
+
+    public function test_pembayaran_duplikat_diabaikan(): void
+    {
+        $so = $this->makeDraftSO(qty: 5, price: 10000); // total 55.500
+        $this->confirm($so);
+        $inv = $this->invoice($so);
+
+        $payload = ['date' => now()->toDateString(), 'amount' => 20000, 'method' => 'COD'];
+        // dua submit identik beruntun (simulasi klik ganda)
+        $this->actingAs($this->admin)->post(route('invoices.payments.store', $inv), $payload)->assertRedirect();
+        $this->actingAs($this->admin)->post(route('invoices.payments.store', $inv->fresh()), $payload)->assertRedirect();
+
+        $inv->refresh();
+        $this->assertEquals(1, $inv->payments()->count(), 'Pembayaran duplikat tidak boleh tercatat dua kali.');
+        $this->assertEquals(20000, (float) $inv->paid_amount);
+        $this->assertSame('partial', $inv->status);
+    }
+
+    public function test_pembayaran_beda_jumlah_tetap_tercatat(): void
+    {
+        $so = $this->makeDraftSO(qty: 5, price: 10000);
+        $this->confirm($so);
+        $inv = $this->invoice($so);
+
+        $this->actingAs($this->admin)->post(route('invoices.payments.store', $inv), [
+            'date' => now()->toDateString(), 'amount' => 20000,
+        ])->assertRedirect();
+        $this->actingAs($this->admin)->post(route('invoices.payments.store', $inv->fresh()), [
+            'date' => now()->toDateString(), 'amount' => 15000,
+        ])->assertRedirect();
+
+        $inv->refresh();
+        $this->assertEquals(2, $inv->payments()->count(), 'Pembayaran dengan jumlah berbeda tetap tercatat.');
+        $this->assertEquals(35000, (float) $inv->paid_amount);
+        $this->assertSame('partial', $inv->status);
+    }
+
+    // ---------------------------------------------------------------
+    // EDIT ITEM SO (draft / confirmed / shipped)
+    // ---------------------------------------------------------------
+
+    /** Payload update SO dengan 1 item. */
+    private function updatePayload(float $qty, float $price = 10000, array $overrides = []): array
+    {
+        return array_merge([
+            'customer_id' => $this->customer->id,
+            'date' => now()->toDateString(),
+            'is_taxable' => 1,
+            'ppn_rate' => 11,
+            'discount' => 0,
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => $qty, 'sell_price' => $price, 'discount' => 0],
+            ],
+        ], $overrides);
+    }
+
+    public function test_edit_draft_tidak_menyentuh_stok(): void
+    {
+        $so = $this->makeDraftSO(qty: 3); // draft, stok belum dipotong (tetap 100)
+
+        $this->actingAs($this->admin)
+            ->put(route('sales-orders.update', $so), $this->updatePayload(qty: 7))
+            ->assertRedirect();
+
+        $this->assertEquals(100, (float) $this->product->fresh()->stock);
+        $this->assertEquals(7, (float) $so->fresh()->items->first()->qty);
+    }
+
+    public function test_edit_saat_confirmed_menyesuaikan_stok(): void
+    {
+        $so = $this->makeDraftSO(qty: 3); // stok 100
+        $this->confirm($so);              // stok 97
+
+        $this->actingAs($this->admin)
+            ->put(route('sales-orders.update', $so), $this->updatePayload(qty: 5))
+            ->assertRedirect();
+
+        // kembalikan 3 (->100), potong 5 (->95)
+        $this->assertEquals(95, (float) $this->product->fresh()->stock);
+        $this->assertSame('confirmed', $so->fresh()->status);
+        $this->assertEquals(55500, (float) $so->fresh()->total); // 5*10000*1.11
+    }
+
+    public function test_edit_saat_shipped_memperbarui_rincian_dan_total_invoice(): void
+    {
+        $so = $this->makeDraftSO(qty: 2, price: 10000);
+        $this->confirm($so);
+        $inv = $this->invoice($so);
+        $this->actingAs($this->admin)->post(route('sales-orders.ship', $so))->assertRedirect();
+
+        $this->actingAs($this->admin)
+            ->put(route('sales-orders.update', $so), $this->updatePayload(qty: 4))
+            ->assertRedirect();
+
+        $so->refresh();
+        $inv->refresh();
+        $this->assertSame('shipped', $so->status);
+        $this->assertEquals(4, (float) $so->items->first()->qty, 'Rincian invoice (item SO) ikut berubah.');
+        $this->assertEquals(44400, (float) $so->total);   // 4*10000*1.11
+        $this->assertEquals(44400, (float) $inv->total);  // total invoice ikut
+        $this->assertEquals(96, (float) $this->product->fresh()->stock); // 100 -2 (confirm) +2 -4 (edit)
+    }
+
+    public function test_edit_ditolak_saat_completed(): void
+    {
+        $so = $this->makeDraftSO();
+        $this->confirm($so);
+        $inv = $this->invoice($so);
+        $this->actingAs($this->admin)->post(route('invoices.payments.store', $inv), [
+            'date' => now()->toDateString(), 'amount' => $inv->total,
+        ])->assertRedirect();
+
+        $this->assertSame('completed', $so->fresh()->status);
+        $this->actingAs($this->admin)->get(route('sales-orders.edit', $so))->assertForbidden();
+        $this->actingAs($this->admin)
+            ->put(route('sales-orders.update', $so), $this->updatePayload(qty: 9))
+            ->assertForbidden();
+    }
+
+    public function test_edit_ditolak_jika_total_di_bawah_yang_sudah_dibayar(): void
+    {
+        $so = $this->makeDraftSO(qty: 5, price: 10000); // total 55500
+        $this->confirm($so);
+        $inv = $this->invoice($so);
+
+        // bayar sebagian 30.000
+        $this->actingAs($this->admin)->post(route('invoices.payments.store', $inv), [
+            'date' => now()->toDateString(), 'amount' => 30000,
+        ])->assertRedirect();
+        $this->assertSame('partial', $inv->fresh()->status);
+
+        // coba turunkan jadi 1 item (total 11.100) < 30.000 -> ditolak
+        $this->actingAs($this->admin)
+            ->from(route('sales-orders.edit', $so))
+            ->put(route('sales-orders.update', $so), $this->updatePayload(qty: 1))
+            ->assertSessionHasErrors('items');
+
+        // data tak berubah
+        $this->assertEquals(55500, (float) $inv->fresh()->total);
+        $this->assertEquals(5, (float) $so->fresh()->items->first()->qty);
+    }
+
+    public function test_edit_stok_tidak_cukup_ditolak_dan_rollback(): void
+    {
+        $so = $this->makeDraftSO(qty: 3); // stok 97 setelah confirm
+        $this->confirm($so);
+
+        // minta qty 200 padahal stok cuma 100 (setelah kembalikan 3) -> gagal
+        $this->actingAs($this->admin)
+            ->from(route('sales-orders.edit', $so))
+            ->put(route('sales-orders.update', $so), $this->updatePayload(qty: 200))
+            ->assertSessionHasErrors('stock');
+
+        // rollback: stok & item tetap seperti semula
+        $this->assertEquals(97, (float) $this->product->fresh()->stock);
+        $this->assertEquals(3, (float) $so->fresh()->items->first()->qty);
+    }
 }
