@@ -14,7 +14,8 @@
     <x-page-header :title="($order->exists ? 'Edit' : 'Buat') . ' Sales Order'" subtitle="Pesanan penjualan ke pelanggan" />
 
     <form method="POST" action="{{ $order->exists ? route('sales-orders.update', $order) : route('sales-orders.store') }}"
-          x-data="orderForm({ products: {{ Illuminate\Support\Js::from($productsJson) }}, items: {{ Illuminate\Support\Js::from($itemsJson) }}, priceField: 'sell_price', isTaxable: {{ old('is_taxable', $order->is_taxable) ? 'true' : 'false' }}, ppnRate: {{ old('ppn_rate', $order->ppn_rate ?: 11) }}, discount: {{ old('discount', $order->discount ?: 0) }}, withReason: true })">
+          x-data="orderForm({ products: {{ Illuminate\Support\Js::from($productsJson) }}, items: {{ Illuminate\Support\Js::from($itemsJson) }}, priceField: 'sell_price', isTaxable: {{ old('is_taxable', $order->is_taxable) ? 'true' : 'false' }}, ppnRate: {{ old('ppn_rate', $order->ppn_rate ?: 11) }}, discount: {{ old('discount', $order->discount ?: 0) }}, withReason: true })"
+          @submit="$refs.saveBtn.disabled = true; $refs.saveBtn.textContent = 'Menyimpan…'">
         @csrf
         @if ($order->exists) @method('PUT') @endif
 
@@ -146,7 +147,7 @@
 
                     @php $editingPosted = $order->exists && $order->status !== 'draft'; @endphp
                     <div class="flex flex-col gap-2 pt-2">
-                        <button type="submit" class="btn-gold w-full">{{ $editingPosted ? 'Simpan Perubahan' : 'Simpan (Draft)' }}</button>
+                        <button type="submit" x-ref="saveBtn" class="btn-gold w-full">{{ $editingPosted ? 'Simpan Perubahan' : 'Simpan (Draft)' }}</button>
                         <a href="{{ route('sales-orders.index') }}" class="btn-outline w-full">Batal</a>
                     </div>
                     @if ($editingPosted)

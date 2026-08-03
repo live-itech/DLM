@@ -59,6 +59,18 @@ class SalesOrderController extends Controller implements HasMiddleware
     {
         $data = $this->validateData($request);
 
+        // Cegah duplikat akibat double-submit: bila SO identik (pelanggan & total
+        // sama, oleh user yang sama) baru dibuat < 20 detik lalu, alihkan ke SO itu.
+        $recent = SalesOrder::where('customer_id', $data['customer_id'])
+            ->where('user_id', auth()->id())
+            ->where('created_at', '>=', now()->subSeconds(20))
+            ->latest('id')
+            ->first();
+        if ($recent && abs((float) $recent->total - $this->previewTotal($data)) < 0.01) {
+            return redirect()->route('sales-orders.show', $recent)
+                ->with('status', 'SO identik baru saja dibuat — duplikat diabaikan.');
+        }
+
         $order = DB::transaction(function () use ($data) {
             $order = SalesOrder::create([
                 'so_number' => 'TMP-' . Str::random(24),

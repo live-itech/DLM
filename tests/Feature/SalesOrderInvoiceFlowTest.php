@@ -324,6 +324,43 @@ class SalesOrderInvoiceFlowTest extends TestCase
     }
 
     // ---------------------------------------------------------------
+    // PEMBUATAN SO — cegah double-submit
+    // ---------------------------------------------------------------
+
+    /** Payload create SO dengan 1 item. */
+    private function createPayload(float $qty, float $price = 10000): array
+    {
+        return [
+            'customer_id' => $this->customer->id,
+            'date' => now()->toDateString(),
+            'is_taxable' => 1,
+            'ppn_rate' => 11,
+            'discount' => 0,
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => $qty, 'sell_price' => $price, 'discount' => 0],
+            ],
+        ];
+    }
+
+    public function test_pembuatan_so_duplikat_diabaikan(): void
+    {
+        $payload = $this->createPayload(qty: 1, price: 567500);
+
+        $this->actingAs($this->admin)->post(route('sales-orders.store'), $payload)->assertRedirect();
+        $this->actingAs($this->admin)->post(route('sales-orders.store'), $payload)->assertRedirect();
+
+        $this->assertEquals(1, SalesOrder::count(), 'SO identik beruntun tidak boleh tercatat dua kali.');
+    }
+
+    public function test_so_beda_total_tetap_dibuat(): void
+    {
+        $this->actingAs($this->admin)->post(route('sales-orders.store'), $this->createPayload(qty: 1, price: 10000))->assertRedirect();
+        $this->actingAs($this->admin)->post(route('sales-orders.store'), $this->createPayload(qty: 2, price: 10000))->assertRedirect();
+
+        $this->assertEquals(2, SalesOrder::count(), 'SO dengan total berbeda tetap dibuat.');
+    }
+
+    // ---------------------------------------------------------------
     // PEMBAYARAN — cegah double-submit
     // ---------------------------------------------------------------
 
