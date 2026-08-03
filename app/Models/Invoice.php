@@ -66,5 +66,14 @@ class Invoice extends Model
         }
 
         $this->save();
+
+        // SO dianggap 'Selesai' hanya setelah invoice lunas. Naikkan saja
+        // (confirmed/shipped -> completed); tidak menurunkan status apa pun.
+        if ($this->status === 'paid') {
+            $so = $this->salesOrder;
+            if ($so && in_array($so->status, ['confirmed', 'shipped'], true)) {
+                $so->update(['status' => 'completed']);
+            }
+        }
     }
 }

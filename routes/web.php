@@ -52,6 +52,7 @@ Route::middleware(['auth', \App\Http\Middleware\EnsureUserActive::class])->group
         Route::post('{salesOrder}/confirm', 'confirm')->name('confirm');
         Route::post('{salesOrder}/cancel', 'cancel')->name('cancel');
         Route::post('{salesOrder}/invoice', 'toInvoice')->name('to-invoice');
+        Route::post('{salesOrder}/ship', 'ship')->name('ship');
     });
     Route::resource('sales-orders', SalesOrderController::class)->parameters(['sales-orders' => 'salesOrder']);
 

@@ -47,6 +47,11 @@
                         </div>
                     </div>
                 @endif
+                @if ($order->status === 'confirmed' && $order->invoice)
+                    <form method="POST" action="{{ route('sales-orders.ship', $order) }}" x-data @submit.prevent="if(confirm('Tandai SO ini sudah dikirim?')) $el.submit()">
+                        @csrf<button class="btn-gold">Tandai Dikirim</button>
+                    </form>
+                @endif
                 @if ($order->isCancellable())
                     <form method="POST" action="{{ route('sales-orders.cancel', $order) }}" x-data @submit.prevent="if(confirm('Batalkan SO ini?')) $el.submit()">
                         @csrf<button class="btn-outline text-red-600">Batalkan</button>

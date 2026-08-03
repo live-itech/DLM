@@ -23,7 +23,7 @@ class SalesOrderController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:sales-orders.view', only: ['index', 'show']),
             new Middleware('permission:sales-orders.create', only: ['create', 'store']),
-            new Middleware('permission:sales-orders.update', only: ['edit', 'update', 'confirm', 'cancel', 'toInvoice']),
+            new Middleware('permission:sales-orders.update', only: ['edit', 'update', 'confirm', 'cancel', 'toInvoice', 'ship']),
             new Middleware('permission:sales-orders.delete', only: ['destroy']),
         ];
     }
@@ -211,12 +211,27 @@ class SalesOrderController extends Controller implements HasMiddleware
                 'paid_amount' => 0,
             ]);
             $invoice->update(['invoice_number' => $this->makeNumber('INV', $invoice->id, $invoice->date)]);
-            $salesOrder->update(['status' => 'completed']);
+            // SO tetap 'confirmed' setelah invoice dibuat. Status berpindah ke
+            // 'shipped' lewat tombol Tandai Dikirim, lalu 'completed' saat invoice lunas.
 
             return $invoice;
         });
 
         return redirect()->route('invoices.show', $invoice)->with('status', 'Invoice berhasil dibuat dari SO.');
+    }
+
+    /** Tandai SO sudah dikirim (hanya setelah invoice dibuat). */
+    public function ship(SalesOrder $salesOrder)
+    {
+        abort_unless(
+            $salesOrder->status === 'confirmed' && $salesOrder->invoice()->exists(),
+            403,
+            'SO harus sudah dikonfirmasi & dibuatkan invoice sebelum ditandai dikirim.',
+        );
+
+        $salesOrder->update(['status' => 'shipped']);
+
+        return back()->with('status', 'SO ditandai sudah dikirim.');
     }
 
     // ---------- helpers ----------
