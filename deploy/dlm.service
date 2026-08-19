@@ -1,0 +1,18 @@
+[Unit]
+Description=DLM Medika (Laravel) - artisan serve on port 3001
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=liveit
+Group=liveit
+WorkingDirectory=/opt/DLM
+ExecStart=/usr/bin/php /opt/DLM/artisan serve --host=0.0.0.0 --port=3001
+Restart=always
+RestartSec=3
+StandardOutput=append:/opt/DLM/storage/logs/serve.log
+StandardError=append:/opt/DLM/storage/logs/serve.log
+
+[Install]
+WantedBy=multi-user.target
