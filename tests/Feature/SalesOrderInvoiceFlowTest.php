@@ -466,6 +466,41 @@ class SalesOrderInvoiceFlowTest extends TestCase
         $this->assertEquals(96, (float) $this->product->fresh()->stock); // 100 -2 (confirm) +2 -4 (edit)
     }
 
+    public function test_edit_jatuh_tempo_so_ikut_mengubah_invoice(): void
+    {
+        $so = $this->makeDraftSO(qty: 2, price: 10000);
+        $this->confirm($so);
+        $inv = $this->invoice($so);
+
+        $baru = now()->addDays(30)->toDateString();
+        $this->actingAs($this->admin)
+            ->put(route('sales-orders.update', $so), $this->updatePayload(qty: 2, overrides: ['due_date' => $baru]))
+            ->assertRedirect();
+
+        $this->assertSame($baru, $so->fresh()->due_date->toDateString());
+        $this->assertSame($baru, $inv->fresh()->due_date->toDateString(), 'Jatuh tempo invoice ikut jatuh tempo SO.');
+    }
+
+    public function test_jatuh_tempo_invoice_tidak_mendahului_tanggal_invoice(): void
+    {
+        $so = $this->makeDraftSO(qty: 2, price: 10000);
+        $this->confirm($so);
+        $inv = $this->invoice($so);
+        $inv->update(['date' => now()->addDays(5)->toDateString()]);
+
+        // Jatuh tempo SO lebih awal dari tanggal invoice -> invoice pakai tanggalnya sendiri.
+        $this->actingAs($this->admin)
+            ->put(route('sales-orders.update', $so), $this->updatePayload(qty: 2, overrides: [
+                'due_date' => now()->addDays(2)->toDateString(),
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame(
+            now()->addDays(5)->toDateString(),
+            $inv->fresh()->due_date->toDateString(),
+        );
+    }
+
     public function test_edit_ditolak_saat_completed(): void
     {
         $so = $this->makeDraftSO();

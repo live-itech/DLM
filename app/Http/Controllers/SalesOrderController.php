@@ -179,9 +179,17 @@ class SalesOrderController extends Controller implements HasMiddleware
                     }
                 }
 
-                // 4. Sinkronkan invoice bila ada: rincian ikut SO, total dihitung ulang.
+                // 4. Sinkronkan invoice bila ada: rincian ikut SO, total dihitung
+                //    ulang, dan jatuh tempo mengikuti jatuh tempo SO.
                 if ($invoice) {
-                    $invoice->update(['total' => $salesOrder->total]);
+                    $sync = ['total' => $salesOrder->total];
+                    if ($salesOrder->due_date) {
+                        // Jangan sampai jatuh tempo mendahului tanggal invoice.
+                        $sync['due_date'] = $salesOrder->due_date->lt($invoice->date)
+                            ? $invoice->date
+                            : $salesOrder->due_date;
+                    }
+                    $invoice->update($sync);
                     if ((float) $invoice->paid_amount > 0) {
                         $invoice->refreshPaymentStatus();
                     }
